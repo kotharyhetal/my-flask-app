@@ -1,0 +1,33 @@
+name: Flask AKS CI-CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and Push Image to ACR
+        run: |
+          az acr login --name myflaskreg
+          docker build -t myflaskreg.azurecr.io/flask-app:${{ github.sha }} .
+          docker push myflaskreg.azurecr.io/flask-app:${{ github.sha }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: 'flask-app_group'
+          cluster-name: 'flask-app'
+
+      - name: Deploy to Cluster
+        run: |
+          kubectl set image deployment/flask-deployment flask-container=myflaskreg.azurecr.io/flask-app:${{ github.sha }}
